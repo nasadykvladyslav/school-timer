@@ -3,62 +3,209 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Шкільний таймер</title>
-    <link rel="manifest" href="./manifest.json">
-    <meta name="theme-color" content="#10b981" />
+    <title>Шкільний таймер: урок / перерва</title>
     <style>
         :root{
-            --bg-lesson: #10b981;
-            --bg-break: #ef4444;
-            --bg-off: #1f2937;
-            --text: #ffffff;
+            --bg-lesson: #10b981; /* зелений */
+            --bg-break: #ef4444;  /* червоний */
+            --bg-off:   #1f2937;  /* темно-синій/сірий для неурочного часу */
+            --text:     #ffffff;
+            --muted:    #e5e7eb;
+            --shadow:   rgba(0,0,0,.25);
         }
         *{box-sizing:border-box}
         html,body{height:100%;margin:0}
-        body{font-family:system-ui, sans-serif;color:var(--text);display:flex;align-items:center;justify-content:center;background:var(--bg-off);transition:background-color .3s ease;}
-        .wrap{text-align:center;padding:20px;max-width:600px}
-        .clock{font-size:3em;font-weight:bold;margin:.2em 0}
-        .status{font-size:1.6em;font-weight:600;margin:.2em 0}
-        .remain{font-size:2em;font-weight:bold;margin:.3em 0}
-        .detail{opacity:.9;margin:.2em 0}
-        .progress{height:10px;border-radius:999px;background:rgba(255,255,255,.3);overflow:hidden}
-        .bar{height:100%;width:0;background:#fff;transition:width .5s ease}
-        .footer{font-size:.8em;opacity:.8;margin-top:1em}
+        body{
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji";
+            color: var(--text);
+            display:flex;align-items:center;justify-content:center;
+            background: var(--bg-off);
+            transition: background-color .3s ease;
+        }
+        .wrap{
+            width:min(100svw,1200px);
+            padding:clamp(16px,4svw,48px);
+            text-align:center;
+        }
+        .clock{font-size:clamp(36px,8svw,84px);font-weight:800;line-height:1;margin:0 0 .2em;text-shadow:0 4px 16px var(--shadow)}
+        .status{font-size:clamp(20px,4svw,40px);margin:.1em 0 .4em;font-weight:700}
+        .detail{font-size:clamp(14px,2.6svw,22px);opacity:.95;margin:.1em 0}
+        .remain{font-size:clamp(28px,6svw,56px);font-weight:800;margin:.3em 0 .6em}
+        .progress{
+            height:14px;border-radius:999px;overflow:hidden;background:rgba(255,255,255,.25);
+            box-shadow: inset 0 1px 3px rgba(0,0,0,.25);
+        }
+        .bar{height:100%;width:0%;background:rgba(255,255,255,.9);transition:width .6s ease}
+
+        .tag{display:inline-block;padding:.35em .7em;border-radius:999px;background:rgba(0,0,0,.2);margin:.25em;font-weight:700}
+        .footer{opacity:.8;margin-top:1.25em;font-size:clamp(12px,2svw,16px)}
+        .mini{opacity:.85}
     </style>
 </head>
 <body>
 <div class="wrap">
     <div class="clock" id="clock">--:--:--</div>
-    <div class="status" id="status">—</div>
+    <div class="status" id="status">Визначаю статус…</div>
     <div class="remain" id="remain">—</div>
     <div class="detail" id="detail">—</div>
-    <div class="progress"><div class="bar" id="bar"></div></div>
-    <div class="footer" id="footer"></div>
+    <div class="progress" aria-label="Прогрес інтервалу"><div class="bar" id="bar"></div></div>
+    <div class="footer mini" id="footer"></div>
 </div>
+
 <script>
+    // === Налаштування розкладу (щоденно однаково) ===
+    // Формат: "HH:MM" локального часу пристрою
     const lessons = [
-        ["08:00","08:40"],["08:45","09:25"],["09:40","10:20"],["10:35","11:15"],["11:25","12:05"],
-        ["12:10","12:50"],["12:55","13:35"],["13:40","14:20"],["14:35","15:15"],["15:30","16:10"],
-        ["16:15","16:55"],["17:00","17:40"],["17:45","18:25"]
+        ["08:00","08:40"],
+        ["08:45","09:25"],
+        ["09:40","10:20"],
+        ["10:35","11:15"],
+        ["11:25","12:05"],
+        ["12:10","12:50"],
+        ["12:55","13:35"],
+        ["13:40","14:20"],
+        ["14:35","15:15"],
+        ["15:30","16:10"],
+        ["16:15","16:55"],
+        ["17:00","17:40"],
+        ["17:45","18:25"],
     ];
+
+    // З цього розкладу автоматично побудуємо повну стрічку подій (урок/перерва)
     function toMinutes(str){const [h,m]=str.split(":").map(Number);return h*60+m}
     function toHM(min){const h=Math.floor(min/60)%24,m=min%60;return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`}
-    const timeline=[]; (function(){for(let i=0;i<lessons.length;i++){const [s,e]=lessons[i].map(toMinutes);timeline.push({type:"lesson",idx:i+1,startM:s,endM:e});const next=lessons[i+1];if(next){const [s2]=next.map(toMinutes);if(s2>e)timeline.push({type:"break",idx:i+1,nextIdx:i+2,startM:e,endM:s2});}}})();
-    const elClock=document.getElementById('clock');
-    const elStatus=document.getElementById('status');
-    const elRemain=document.getElementById('remain');
-    const elDetail=document.getElementById('detail');
-    const elBar=document.getElementById('bar');
-    const elFooter=document.getElementById('footer');
-    const fmtTime=new Intl.DateTimeFormat('uk-UA',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
-    const fmtDate=new Intl.DateTimeFormat('uk-UA',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'});
-    function nowMinutes(){const d=new Date();return d.getHours()*60+d.getMinutes()+d.getSeconds()/60}
-    function secondsToHMS(sec){const s=Math.max(0,Math.floor(sec));const m=Math.floor(s/60);const r=s%60;return `${m}:${String(r).padStart(2,'0')}`}
-    function setBg(type){if(type==='lesson')document.body.style.backgroundColor='var(--bg-lesson)';else if(type==='break')document.body.style.backgroundColor='var(--bg-break)';else document.body.style.backgroundColor='var(--bg-off)'}
-    function describeCurrent(t){for(const item of timeline){if(t*60>=item.startM*60 && t*60<item.endM*60){const total=(item.endM-item.startM)*60;const elapsed=(t-item.startM)*60;return {state:item.type,item,remain:total-elapsed,progress:elapsed/total*100}}}const first=timeline[0].startM,last=timeline[timeline.length-1].endM;let nextLabel='';let remain=0;if(t<first){nextLabel=`до 1-го уроку о ${toHM(first)}`;remain=(first-t)*60}else if(t>=last){nextLabel='уроки завершилися'}else{const after=timeline.find(x=>x.startM>t);if(after){nextLabel=`до ${after.type==='lesson'?'уроку':'перерви'} о ${toHM(after.startM)}`;remain=(after.startM-t)*60}}return {state:'off',remain,progress:0,nextLabel}}
-    function tick(){const d=new Date();elClock.textContent=fmtTime.format(d);elFooter.textContent=fmtDate.format(d);const t=nowMinutes();const info=describeCurrent(t);if(info.state==='lesson'){setBg('lesson');elStatus.textContent=`Урок №${info.item.idx}`;elDetail.textContent=`${toHM(info.item.startM)} – ${toHM(info.item.endM)}`;elRemain.textContent=`Залишилось: ${secondsToHMS(info.remain)}`;elBar.style.width=`${info.progress}%`}else if(info.state==='break'){setBg('break');elStatus.textContent=`Перерва (${info.item.idx}↔${info.item.nextIdx})`;elDetail.textContent=`${toHM(info.item.startM)} – ${toHM(info.item.endM)}`;elRemain.textContent=`Залишилось: ${secondsToHMS(info.remain)}`;elBar.style.width=`${info.progress}%`}else{setBg('off');elStatus.textContent='Неурочний час';elDetail.textContent=info.nextLabel;elRemain.textContent=info.remain>0?`Початок через: ${secondsToHMS(info.remain)}`:'Вільний час';elBar.style.width='0%'}requestAnimationFrame(()=>setTimeout(tick,500))}
-    tick();
 
+    const timeline = []; // елементи виду {type:"lesson"|"break", idx, startM, endM}
+    (function buildTimeline(){
+        for(let i=0;i<lessons.length;i++){
+            const [s,e]=lessons[i].map(toMinutes);
+            timeline.push({type:"lesson", idx:i+1, startM:s, endM:e});
+            const next = lessons[i+1];
+            if(next){
+                const [s2] = next.map(toMinutes);
+                if(s2>e){
+                    timeline.push({type:"break", idx:i+1, nextIdx:i+2, startM:e, endM:s2});
+                }
+            }
+        }
+    })();
+
+    // Швидкі посилання на вузли
+    const elClock = document.getElementById('clock');
+    const elStatus = document.getElementById('status');
+    const elRemain = document.getElementById('remain');
+    const elDetail = document.getElementById('detail');
+    const elBar = document.getElementById('bar');
+    const elFooter = document.getElementById('footer');
+
+    const fmtTime = new Intl.DateTimeFormat('uk-UA', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+    const fmtDate = new Intl.DateTimeFormat('uk-UA', { weekday:'long', day:'2-digit', month:'2-digit', year:'numeric' });
+
+    function nowMinutes(){
+        const d = new Date();
+        return d.getHours()*60 + d.getMinutes() + d.getSeconds()/60; // часткові хв для плавного прогресу
+    }
+
+    function secondsToHMS(sec){
+        const s = Math.max(0, Math.floor(sec));
+        const h = Math.floor(s/3600);
+        const m = Math.floor((s%3600)/60);
+        const r = s%60;
+        const mm = String(m).padStart(2,'0');
+        const ss = String(r).padStart(2,'0');
+        return h>0 ? `${h}:${mm}:${ss}` : `${m}:${ss}`;
+    }
+
+    function setBg(type){
+        let color = getComputedStyle(document.documentElement).getPropertyValue('--bg-off');
+        if(type==='lesson') color = getComputedStyle(document.documentElement).getPropertyValue('--bg-lesson');
+        if(type==='break') color = getComputedStyle(document.documentElement).getPropertyValue('--bg-break');
+        document.body.style.backgroundColor = color;
+    }
+
+    function describeCurrent(tMin){
+        // Повертає об'єкт зі статусом на поточний момент
+        const t = tMin;
+        // знайдемо елемент, який містить t (в межах startM <= t < endM)
+        for(const item of timeline){
+            if(t*60 >= item.startM*60 && t*60 < item.endM*60){
+                const totalSec = (item.endM - item.startM) * 60;
+                const elapsedSec = (t - item.startM) * 60;
+                const remainSec = totalSec - elapsedSec;
+                const progress = Math.min(100, Math.max(0, (elapsedSec/totalSec)*100));
+                return {state:item.type, item, remainSec, progress};
+            }
+        }
+        // якщо не знайшли — це неурочний час
+        // Визначимо, чи до першого уроку чи після останнього, щоб показати наступну подію
+        const firstStart = timeline[0].startM;
+        const lastEnd = timeline[timeline.length-1].endM;
+        let nextStart=null, nextLabel='';
+        if(t < firstStart){
+            nextStart = firstStart;
+            nextLabel = `до початку 1-го уроку (${toHM(firstStart)})`;
+        } else if(t >= lastEnd){
+            nextLabel = 'уроки завершилися';
+        } else {
+            // між подіями (теоретично не повинно бути, але на всяк випадок)
+            const after = timeline.find(x=>x.startM>t);
+            if(after){
+                nextStart = after.startM;
+                nextLabel = `до наступної події (${after.type==='lesson' ? 'урок' : 'перерва'} ${after.type==='lesson'? (after.idx+'-й'): (after.idx+'↔'+after.nextIdx)} о ${toHM(after.startM)})`;
+            }
+        }
+        let remainSec = 0;
+        if(nextStart!=null) remainSec = Math.max(0, Math.floor((nextStart - t)*60));
+        return {state:'off', item:null, remainSec, progress:0, nextLabel};
+    }
+
+    function tick(){
+        const d = new Date();
+        elClock.textContent = fmtTime.format(d);
+        elFooter.textContent = `${fmtDate.format(d)} • Час з вашого пристрою`;
+
+        const t = nowMinutes();
+        const info = describeCurrent(t);
+
+        if(info.state==='lesson'){
+            const n = info.item.idx;
+            setBg('lesson');
+            elStatus.textContent = `Зараз урок №${n}`;
+            elDetail.textContent = `${toHM(info.item.startM)} – ${toHM(info.item.endM)}`;
+            elRemain.textContent = `Залишилось: ${secondsToHMS(info.remainSec)}`;
+            elBar.style.width = `${info.progress.toFixed(1)}%`;
+        } else if(info.state==='break'){
+            const a = info.item.idx, b = info.item.nextIdx;
+            setBg('break');
+            elStatus.textContent = `Зараз перерва (${a} ↔ ${b})`;
+            elDetail.textContent = `${toHM(info.item.startM)} – ${toHM(info.item.endM)}`;
+            elRemain.textContent = `Залишилось: ${secondsToHMS(info.remainSec)}`;
+            elBar.style.width = `${info.progress.toFixed(1)}%`;
+        } else {
+            setBg('off');
+            elStatus.textContent = 'Зараз неурочний час';
+            elDetail.textContent = info.nextLabel ? info.nextLabel : '—';
+            elRemain.textContent = info.remainSec>0 ? `Початок через: ${secondsToHMS(info.remainSec)}` : 'Гарного відпочинку!';
+            elBar.style.width = '0%';
+        }
+        // Оновлюємо кожні ~250 мс для плавності
+        requestAnimationFrame(()=>setTimeout(tick, 250));
+    }
+
+    // Додатково: попередження, якщо на пристрої стоїть інший часовий пояс, ніж Europe/Kyiv
+    try{
+        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+        if(tz && tz !== 'Europe/Kyiv'){
+            const warn = document.createElement('div');
+            warn.className = 'mini';
+            warn.style.marginTop = '10px';
+            warn.style.opacity = '.9';
+            warn.innerHTML = `⚠️ Ваш часовий пояс: <b>${tz}</b>. Розклад рахується за часом пристрою.`;
+            document.querySelector('.wrap').appendChild(warn);
+        }
+    }catch(e){}
+
+    tick();
 
     if('serviceWorker' in navigator){
         window.addEventListener('load',()=>{
